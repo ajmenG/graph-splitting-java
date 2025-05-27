@@ -17,11 +17,16 @@ public class ControlPanel extends JPanel {
     private JButton loadButton;
     private JButton runButton;
 
+    private JPanel partitionsCheckboxPanel;
+    private List<JCheckBox> partitionCheckboxes;
+
     public ControlPanel(MainWindow mainWindow) {
         this.mainWindow = mainWindow;
         setPreferredSize(new Dimension(250, 800));
         setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
         setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+        partitionCheckboxes = new ArrayList<>();
 
         initializeComponents();
     }
@@ -50,6 +55,36 @@ public class ControlPanel extends JPanel {
         runButton = new JButton("Run Partitioning");
         runButton.addActionListener(e -> runPartitioning());
         add(runButton);
+
+        add(Box.createRigidArea(new Dimension(0, 20)));
+        add(new JLabel("Show / Hide Partitions:"));
+
+        partitionsCheckboxPanel = new JPanel();
+        partitionsCheckboxPanel.setLayout(new BoxLayout(partitionsCheckboxPanel, BoxLayout.Y_AXIS));
+        add(partitionsCheckboxPanel);
+    }
+
+    // Metoda tworzy checkboxy wg liczby partycji i dodaje je do partitionsCheckboxPanel
+    private void createPartitionCheckboxes(int partitions) {
+        partitionsCheckboxPanel.removeAll();
+        partitionCheckboxes.clear();
+
+        for (int i = 0; i < partitions; i++) {
+            int partId = i;
+            JCheckBox cb = new JCheckBox("Partition " + partId, true);
+            cb.addActionListener(e -> {
+                GraphPanel gp = mainWindow.getGraphPanel();
+                if (gp != null) {
+                    gp.setPartitionVisible(partId, cb.isSelected());
+                    gp.repaint();
+                }
+            });
+            partitionCheckboxes.add(cb);
+            partitionsCheckboxPanel.add(cb);
+        }
+
+        partitionsCheckboxPanel.revalidate();
+        partitionsCheckboxPanel.repaint();
     }
 
     private void loadGraph() {
@@ -64,13 +99,18 @@ public class ControlPanel extends JPanel {
             ParsedData parsedData = fileReader.parseFile("./data/" + filename + ".csrrg");
             Graph graph = fileReader.loadGraph(parsedData);
             mainWindow.updateGraph(graph);
-            JOptionPane.showMessageDialog(this, 
-                "Graph loaded successfully with " + graph.getVertices() + " vertices and " + 
-                graph.getEdges() + " edges.");
+
+            // Utwórz checkboxy na podstawie liczby partycji w grafie (domyślnie 1 jeśli brak podziału)
+            int partitions = graph.getPartitions() > 0 ? graph.getPartitions() : 1;
+            createPartitionCheckboxes(partitions);
+
+            JOptionPane.showMessageDialog(this,
+                    "Graph loaded successfully with " + graph.getVertices() + " vertices and " +
+                            graph.getEdges() + " edges.");
         } catch (Exception e) {
-            JOptionPane.showMessageDialog(this, 
-                "Error loading graph: " + e.getMessage(), 
-                "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this,
+                    "Error loading graph: " + e.getMessage(),
+                    "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 
@@ -116,8 +156,11 @@ public class ControlPanel extends JPanel {
             // Run FM optimization
             FmOptimization.cutEdgesOptimization(graph, partitionData, 100);
 
-            // Update display using MainWindow's updateGraph method
+            // Update display
             mainWindow.updateGraph(graph);
+
+            // Odśwież checkboxy wg nowej liczby partycji
+            createPartitionCheckboxes(partitions);
 
             JOptionPane.showMessageDialog(this,
                     "Partitioning " + (success ? "completed successfully" : "completed with balance issues"));
