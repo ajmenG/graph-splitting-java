@@ -9,6 +9,7 @@ public class Graph {
     private int minCount; // minimum count of nodes in a partition
     private int maxCount; // maximum count of nodes in a partition
     private ArrayList<Node> nodes;
+    private int[] rowIndices;
 
     public Graph(int vertices)
     {
@@ -30,13 +31,23 @@ public class Graph {
         }
         this.edges = edges / 2; // each edge is counted twice
     }
-    
+
     public void setEdges(int edges) {
         this.edges = edges;
     }
 
     public void setPartitions(int partitions) {
         this.partitions = partitions;
+    }
+
+    private ParsedData parsedData;
+
+    public ParsedData getParsedData() {
+        return parsedData;
+    }
+
+    public void setParsedData(ParsedData parsedData) {
+        this.parsedData = parsedData;
     }
 
     public void setMinCount(double accuracy) {
@@ -89,6 +100,14 @@ public class Graph {
 
     public ArrayList<Node> getNodes() {
         return nodes;
+    }
+
+    public int[] getRowIndices() {
+        return rowIndices;
+    }
+
+    public void setRowIndices(int[] rowIndices) {
+        this.rowIndices = rowIndices;
     }
 
     public void printPartitionNeighbours() {
