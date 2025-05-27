@@ -151,6 +151,7 @@ public class FileReader {
     public Graph loadGraph(ParsedData data) {
         // utwórz graf
         Graph graph = new Graph(data.getLine2().size());
+        graph.setParsedData(data);
         int edgeCount = 0;
 
         // najpierw zainicjuj wszystkie węzły
@@ -186,14 +187,14 @@ public class FileReader {
                 }
             }
         }
-        
+
         // Aktualizacja liczby krawędzi w grafie
         graph.setEdges(edgeCount);
-        
+
         // Dodaj debug info
         System.out.println("Loaded graph with " + graph.getVertices() + " vertices and " + graph.getEdges() + " edges");
         System.out.println("Data contains " + data.getEdges().size() + " edge entries and " + data.getRowPointers().size() + " row pointers");
-        
+
         return graph;
     }
 

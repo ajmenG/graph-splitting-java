@@ -19,7 +19,7 @@ public class Node {
     public void addNeighbour(int neighbourId) {
         // Tworzymy tymczasowy obiekt tylko do sprawdzenia, czy już istnieje w liście
         Node tempNode = new Node(neighbourId);
-        
+
         if (this.neighbours.contains(tempNode)) {
             return; // already exists
         }
