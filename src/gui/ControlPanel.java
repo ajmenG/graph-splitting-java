@@ -1,6 +1,7 @@
 package gui;
 
 import io.FileReader;
+import io.FileWriter;
 import model.*;
 import algorithm.*;
 import javax.swing.*;
@@ -14,11 +15,13 @@ public class ControlPanel extends JPanel {
     private JTextField fileNameField;
     private JTextField partitionsField;
     private JTextField accuracyField;
+    private JTextField outputField;
     private JButton loadButton;
     private JButton runButton;
 
     private JPanel partitionsCheckboxPanel;
     private List<JCheckBox> partitionCheckboxes;
+    private JCheckBox binaryCheckbox;
 
     public ControlPanel(MainWindow mainWindow) {
         this.mainWindow = mainWindow;
@@ -34,18 +37,27 @@ public class ControlPanel extends JPanel {
     private void initializeComponents() {
         // File input
         add(new JLabel("File Name:"));
-        fileNameField = new JTextField(20);
+        fileNameField = new JTextField(2);
         add(fileNameField);
 
         // Partitions input
         add(new JLabel("Number of Partitions:"));
-        partitionsField = new JTextField(20);
+        partitionsField = new JTextField(2);
         add(partitionsField);
 
         // Accuracy input
         add(new JLabel("Accuracy (%):"));
-        accuracyField = new JTextField(20);
+        accuracyField = new JTextField(2);
         add(accuracyField);
+
+        // Output
+        add(new JLabel("Output File Name:"));
+        outputField = new JTextField(2);
+        add(outputField);
+
+        // Checkbox for binary output
+        binaryCheckbox = new JCheckBox("Binary Output", false);
+        add(binaryCheckbox);
 
         // Buttons
         loadButton = new JButton("Load Graph");
@@ -56,7 +68,7 @@ public class ControlPanel extends JPanel {
         runButton.addActionListener(e -> runPartitioning());
         add(runButton);
 
-        add(Box.createRigidArea(new Dimension(0, 20)));
+        add(Box.createRigidArea(new Dimension(0, 2)));
         add(new JLabel("Show / Hide Partitions:"));
 
         partitionsCheckboxPanel = new JPanel();
@@ -165,6 +177,12 @@ public class ControlPanel extends JPanel {
             JOptionPane.showMessageDialog(this,
                     "Partitioning " + (success ? "completed successfully" : "completed with balance issues"));
 
+            io.FileWriter file = new io.FileWriter();
+            String outputFileName = outputField.getText() != null && !outputField.getText().isEmpty() ? outputField.getText() : "anwser";
+            file.writeText("./data/" + outputFileName + ".csrrg", graph.getParsedData(), partitionData, graph, partitions);
+            if (binaryCheckbox.isSelected()) {
+                file.writeBinary("./data/" + outputFileName + ".bin", graph.getParsedData(), partitionData, graph, partitions);
+            }
         } catch (NumberFormatException e) {
             JOptionPane.showMessageDialog(this,
                     "Please enter valid numbers for partitions and accuracy",
