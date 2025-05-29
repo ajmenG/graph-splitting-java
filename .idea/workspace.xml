@@ -4,15 +4,17 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="60e8501d-b224-4d2b-b533-9e2057dd197e" name="Changes" comment="dodanie zooma i wyswietlania odpowiednich partycji">
+    <list default="true" id="60e8501d-b224-4d2b-b533-9e2057dd197e" name="Changes" comment="dodanie file writera i checkboxow do bin">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/data/anwser.bin" beforeDir="false" afterPath="$PROJECT_DIR$/data/anwser.bin" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/data/anwser.csrrg" beforeDir="false" afterPath="$PROJECT_DIR$/data/anwser.csrrg" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/data/graf.csrrg" beforeDir="false" afterPath="$PROJECT_DIR$/data/graf.csrrg" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/out/production/grafosiekacz/gui/ControlPanel.class" beforeDir="false" afterPath="$PROJECT_DIR$/out/production/grafosiekacz/gui/ControlPanel.class" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/out/production/grafosiekacz/io/FileWriter.class" beforeDir="false" afterPath="$PROJECT_DIR$/out/production/grafosiekacz/io/FileWriter.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/out/production/grafosiekacz/gui/GraphPanel.class" beforeDir="false" afterPath="$PROJECT_DIR$/out/production/grafosiekacz/gui/GraphPanel.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/out/production/grafosiekacz/gui/MainWindow.class" beforeDir="false" afterPath="$PROJECT_DIR$/out/production/grafosiekacz/gui/MainWindow.class" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/gui/ControlPanel.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/gui/ControlPanel.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/io/FileWriter.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/io/FileWriter.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/gui/GraphPanel.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/gui/GraphPanel.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/gui/MainWindow.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/gui/MainWindow.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -47,22 +49,22 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "Application.Main.executor": "Run",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "git-widget-placeholder": "#3 on gui__1.0",
-    "kotlin-language-version-configured": "true",
-    "node.js.detected.package.eslint": "true",
-    "node.js.detected.package.tslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "two.files.diff.last.used.folder": "/Users/cyprianciesielski/Desktop/grafo-siekacz",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Application.Main.executor&quot;: &quot;Run&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;#3 on gui__1.0&quot;,
+    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;two.files.diff.last.used.folder&quot;: &quot;/Users/cyprianciesielski/Desktop/grafo-siekacz&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$/src" />
@@ -102,7 +104,11 @@
       <workItem from="1748334238035" duration="673000" />
       <workItem from="1748334993574" duration="61000" />
       <workItem from="1748357470572" duration="4822000" />
-      <workItem from="1748419373476" duration="3401000" />
+      <workItem from="1748419373476" duration="3810000" />
+      <workItem from="1748503847202" duration="846000" />
+      <workItem from="1748514345490" duration="960000" />
+      <workItem from="1748515417634" duration="1254000" />
+      <workItem from="1748516836978" duration="1307000" />
     </task>
     <task id="LOCAL-00001" summary="początkowe gui, małe zmiany">
       <option name="closed" value="true" />
@@ -120,7 +126,15 @@
       <option name="project" value="LOCAL" />
       <updated>1748360479956</updated>
     </task>
-    <option name="localTasksCounter" value="3" />
+    <task id="LOCAL-00003" summary="dodanie file writera i checkboxow do bin">
+      <option name="closed" value="true" />
+      <created>1748423596155</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1748423596155</updated>
+    </task>
+    <option name="localTasksCounter" value="4" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -129,6 +143,7 @@
   <component name="VcsManagerConfiguration">
     <MESSAGE value="początkowe gui, małe zmiany" />
     <MESSAGE value="dodanie zooma i wyswietlania odpowiednich partycji" />
-    <option name="LAST_COMMIT_MESSAGE" value="dodanie zooma i wyswietlania odpowiednich partycji" />
+    <MESSAGE value="dodanie file writera i checkboxow do bin" />
+    <option name="LAST_COMMIT_MESSAGE" value="dodanie file writera i checkboxow do bin" />
   </component>
 </project>

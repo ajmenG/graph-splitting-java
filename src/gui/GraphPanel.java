@@ -23,7 +23,7 @@ public class GraphPanel extends JPanel implements MouseListener, MouseMotionList
     private Point lastMouse;
     private Point2D.Double viewOffset = new Point2D.Double(0, 0);
     private double zoomFactor = 1.0;
-    private static final double MIN_ZOOM = 0.2;
+    private static final double MIN_ZOOM = 0.05;
     private static final double MAX_ZOOM = 3.0;
 
     // Mapa widoczności partycji (partId -> widoczność)
