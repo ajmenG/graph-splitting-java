@@ -21,9 +21,29 @@ public class MainWindow extends JFrame {
         add(graphPanel, BorderLayout.CENTER);
         add(controlPanel, BorderLayout.EAST);
 
+        // Set up menu bar
+        setJMenuBar(createMenuBar());
+
         // Set window size
         setSize(1200, 800);
         setLocationRelativeTo(null);
+    }
+
+    private JMenuBar createMenuBar() {
+        JMenuBar menuBar = new JMenuBar();
+        JMenu fileMenu = new JMenu("File");
+
+        JMenuItem openItem = new JMenuItem("Open File");
+        openItem.addActionListener(e -> controlPanel.chooseInputFile());
+
+        JMenuItem saveItem = new JMenuItem("Save File");
+        saveItem.addActionListener(e -> controlPanel.chooseOutputFile());
+
+        fileMenu.add(openItem);
+        fileMenu.add(saveItem);
+        menuBar.add(fileMenu);
+
+        return menuBar;
     }
 
     public GraphPanel getGraphPanel() {
@@ -33,5 +53,9 @@ public class MainWindow extends JFrame {
     public void updateGraph(Graph graph) {
         graphPanel.setGraph(graph);
         graphPanel.repaint();
+    }
+
+    public ControlPanel getControlPanel() {
+        return controlPanel;
     }
 }
