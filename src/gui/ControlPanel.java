@@ -117,6 +117,12 @@ public class ControlPanel extends JPanel {
         int result = fileChooser.showOpenDialog(this);
         if (result == JFileChooser.APPROVE_OPTION) {
             selectedInputFile = fileChooser.getSelectedFile();
+            if (!selectedInputFile.getName().toLowerCase().endsWith(".csrrg") &&
+                !selectedInputFile.getName().toLowerCase().endsWith(".bin")) {
+                JOptionPane.showMessageDialog(this, "Please select a valid .csrrg or .bin file");
+                selectedInputFile = null;
+                return;
+            }
             inputFileLabel.setText("input: " + selectedInputFile.getName());
         }
     }
@@ -216,6 +222,11 @@ public class ControlPanel extends JPanel {
 
             if (partitions <= 0) {
                 JOptionPane.showMessageDialog(this, "Number of partitions must be positive");
+                return;
+            }
+
+            if (partitions > graph.getVertices()) {
+                JOptionPane.showMessageDialog(this, "Number of partitions cannot exceed number of vertices");
                 return;
             }
 
