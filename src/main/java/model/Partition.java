@@ -19,6 +19,7 @@ public class Partition {
             partitionVertexCount++;
         }
     }
+
     public int getId() {
         return id;
     }
@@ -30,7 +31,6 @@ public class Partition {
     public List<Integer> getPartitionNodes() {
         return partitionNodes;
     }
-
 
     public void setPartitionVertexCount(int partitionVertexCount) {
         this.partitionVertexCount = partitionVertexCount;
