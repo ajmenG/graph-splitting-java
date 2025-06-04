@@ -12,6 +12,9 @@ public class ParsedData {
     private int line3Count;
     private int edgeCount;
     private int rowCount;
+    private String rawPartitionDataLine;
+    private List<String> rawOffsetLines;
+    private int numberOfPartitions;
 
     public ParsedData() {
         this.line1 = 0;
@@ -23,6 +26,9 @@ public class ParsedData {
         this.edgeCount = 0;
         this.rowPointers = null;
         this.rowCount = 0;
+        this.rawPartitionDataLine = null;
+        this.rawOffsetLines = null;
+        this.numberOfPartitions = 0;
     }
 
     public int getEdgeCount() {
@@ -73,4 +79,27 @@ public class ParsedData {
         this.rowCount = rowPointers.size();
     }
 
+    public String getRawPartitionDataLine() {
+        return rawPartitionDataLine;
+    }
+
+    public void setRawPartitionDataLine(String rawPartitionDataLine) {
+        this.rawPartitionDataLine = rawPartitionDataLine;
+    }
+
+    public List<String> getRawOffsetLines() {
+        return rawOffsetLines;
+    }
+
+    public void setRawOffsetLines(List<String> rawOffsetLines) {
+        this.rawOffsetLines = rawOffsetLines;
+    }
+
+    public int getNumberOfPartitions() {
+        return numberOfPartitions;
+    }
+
+    public void setNumberOfPartitions(int numberOfPartitions) {
+        this.numberOfPartitions = numberOfPartitions;
+    }
 }

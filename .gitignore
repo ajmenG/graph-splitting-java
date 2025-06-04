@@ -1,0 +1,33 @@
+# Pliki skompilowane przez Mavena
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+
+# Pliki logów
+*.log
+logs/
+
+# Pliki tymczasowe
+*.tmp
+*.temp
+
+# Pliki specyficzne dla IntelliJ IDEA
+.idea/
+*.iml
+
+# Pliki generowane przez JVM przy crashu
+hs_err_pid*
+
+# Pliki systemowe
+.DS_Store
+Thumbs.db
+
+# Lokalne archiwa (jeśli nie są częścią repozytorium)
+*.jar
+*.war
+*.ear

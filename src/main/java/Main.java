@@ -6,8 +6,8 @@ public class Main {
         SwingUtilities.invokeLater(() -> {
             try {
                 MainWindow window = new MainWindow();
-                window.setSize(1200, 800);  // Set explicit window size
-                window.setLocationRelativeTo(null);  // Center on screen
+                window.setSize(1200, 800);
+                window.setLocationRelativeTo(null);
                 window.setVisible(true);
             } catch (Exception e) {
                 e.printStackTrace();

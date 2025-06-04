@@ -28,10 +28,8 @@ public class ControlPanel extends JPanel {
     private File selectedInputFile;
     private File selectedOutputFile;
 
-    // 0 = Text, 1 = Binary
     private int selectedOutputType = 0;
 
-    // Store as field to control visibility
     private JLabel showHideLabel;
 
     public ControlPanel(MainWindow mainWindow) {
@@ -51,7 +49,6 @@ public class ControlPanel extends JPanel {
     }
 
     private void initializeComponents(JPanel panel) {
-        // Partitions field
         JLabel partitionsLabel = new JLabel("Partitions:");
         partitionsLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
         panel.add(partitionsLabel);
@@ -64,7 +61,6 @@ public class ControlPanel extends JPanel {
 
         panel.add(Box.createRigidArea(new Dimension(0, 4)));
 
-        // Accuracy field
         JLabel accuracyLabel = new JLabel("Accuracy (%):");
         accuracyLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
         panel.add(accuracyLabel);
@@ -77,7 +73,6 @@ public class ControlPanel extends JPanel {
 
         panel.add(Box.createRigidArea(new Dimension(0, 4)));
 
-        // Buttons
         loadButton = new JButton("Load Graph");
         loadButton.setAlignmentX(Component.LEFT_ALIGNMENT);
         loadButton.addActionListener(e -> loadGraph());
@@ -90,7 +85,6 @@ public class ControlPanel extends JPanel {
 
         panel.add(Box.createRigidArea(new Dimension(0, 8)));
 
-        // Show/Hide label and checkboxes, initially hidden
         showHideLabel = new JLabel("Show / Hide Partitions:");
         showHideLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
         showHideLabel.setVisible(false);
@@ -102,7 +96,6 @@ public class ControlPanel extends JPanel {
         partitionsCheckboxPanel.setVisible(false);
         panel.add(partitionsCheckboxPanel);
 
-        // File info labels (for menu bar feedback)
         inputFileLabel = new JLabel("No input file selected");
         inputFileLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
         panel.add(inputFileLabel);
@@ -114,13 +107,23 @@ public class ControlPanel extends JPanel {
 
     public void chooseInputFile() {
         JFileChooser fileChooser = new JFileChooser("./data");
+        FileNameExtensionFilter csrrgFilter = new FileNameExtensionFilter("CSRRG files (*.csrrg)", "csrrg");
+        FileNameExtensionFilter binFilter = new FileNameExtensionFilter("Binary files (*.bin, *.csrrgbin)", "bin",
+                "csrrgbin");
+        fileChooser.addChoosableFileFilter(csrrgFilter);
+        fileChooser.addChoosableFileFilter(binFilter);
+        fileChooser.setFileFilter(csrrgFilter);
+
         int result = fileChooser.showOpenDialog(this);
         if (result == JFileChooser.APPROVE_OPTION) {
             selectedInputFile = fileChooser.getSelectedFile();
-            if (!selectedInputFile.getName().toLowerCase().endsWith(".csrrg") &&
-                !selectedInputFile.getName().toLowerCase().endsWith(".bin")) {
-                JOptionPane.showMessageDialog(this, "Please select a valid .csrrg or .bin file");
+            String selectedFileNameLower = selectedInputFile.getName().toLowerCase();
+            if (!selectedFileNameLower.endsWith(".csrrg") &&
+                    !selectedFileNameLower.endsWith(".bin") &&
+                    !selectedFileNameLower.endsWith(".csrrgbin")) {
+                JOptionPane.showMessageDialog(this, "Please select a valid .csrrg, .bin, or .csrrgbin file");
                 selectedInputFile = null;
+                inputFileLabel.setText("No input file selected");
                 return;
             }
             inputFileLabel.setText("input: " + selectedInputFile.getName());
@@ -133,28 +136,28 @@ public class ControlPanel extends JPanel {
         FileNameExtensionFilter binFilter = new FileNameExtensionFilter("Binary (.bin)", "bin");
         fileChooser.addChoosableFileFilter(csrrgFilter);
         fileChooser.addChoosableFileFilter(binFilter);
-        fileChooser.setFileFilter(csrrgFilter); // default
+        fileChooser.setFileFilter(csrrgFilter);
 
         int result = fileChooser.showSaveDialog(this);
         if (result == JFileChooser.APPROVE_OPTION) {
-            selectedOutputFile = fileChooser.getSelectedFile();
-            outputFileLabel.setText("output: " + selectedOutputFile.getName());
+            File tempSelectedOutputFile = fileChooser.getSelectedFile();
+            String outputFileName = tempSelectedOutputFile.getName();
+            String outputFilePath = tempSelectedOutputFile.getAbsolutePath();
 
-            // Determine selected filter
             javax.swing.filechooser.FileFilter selectedFilter = fileChooser.getFileFilter();
             if (selectedFilter == binFilter) {
                 selectedOutputType = 1;
-                if (!selectedOutputFile.getName().toLowerCase().endsWith(".bin")) {
-                    selectedOutputFile = new File(selectedOutputFile.getAbsolutePath() + ".bin");
-                    outputFileLabel.setText(selectedOutputFile.getName());
+                if (!outputFileName.toLowerCase().endsWith(".bin")) {
+                    outputFilePath += ".bin";
                 }
             } else {
                 selectedOutputType = 0;
-                if (!selectedOutputFile.getName().toLowerCase().endsWith(".csrrg")) {
-                    selectedOutputFile = new File(selectedOutputFile.getAbsolutePath() + ".csrrg");
-                    outputFileLabel.setText(selectedOutputFile.getName());
+                if (!outputFileName.toLowerCase().endsWith(".csrrg")) {
+                    outputFilePath += ".csrrg";
                 }
             }
+            selectedOutputFile = new File(outputFilePath);
+            outputFileLabel.setText("output: " + selectedOutputFile.getName());
         }
     }
 
@@ -176,9 +179,8 @@ public class ControlPanel extends JPanel {
             partitionsCheckboxPanel.add(cb);
         }
 
-        // Show label and panel only when partitions exist
-        showHideLabel.setVisible(true);
-        partitionsCheckboxPanel.setVisible(true);
+        showHideLabel.setVisible(partitions > 0);
+        partitionsCheckboxPanel.setVisible(partitions > 0);
 
         partitionsCheckboxPanel.revalidate();
         partitionsCheckboxPanel.repaint();
@@ -186,26 +188,88 @@ public class ControlPanel extends JPanel {
 
     private void loadGraph() {
         if (selectedInputFile == null) {
-            JOptionPane.showMessageDialog(this, "Please select an input file");
-            return;
+            chooseInputFile();
+            if (selectedInputFile == null) {
+                JOptionPane.showMessageDialog(this, "Load operation cancelled or no input file selected.");
+                return;
+            }
         }
 
         FileReader fileReader = new FileReader();
+        String originalFilePath = selectedInputFile.getPath();
+        String filePathToParse = originalFilePath;
+        boolean isTempFileUsed = false;
+
         try {
-            ParsedData parsedData = fileReader.parseFile(selectedInputFile.getPath());
+            ParsedData parsedData;
+            String fileNameLower = selectedInputFile.getName().toLowerCase();
+
+            if (fileNameLower.endsWith(".csrrgbin") || fileNameLower.endsWith(".bin")) {
+                System.out.println("Attempting to convert binary file: " + originalFilePath);
+                filePathToParse = fileReader.convertBinaryToTemporaryTextFile(originalFilePath);
+                isTempFileUsed = true;
+                System.out.println("Binary file converted to temporary text file: " + filePathToParse);
+            }
+
+            parsedData = fileReader.parseFile(filePathToParse);
             Graph graph = fileReader.loadGraph(parsedData);
             mainWindow.updateGraph(graph);
 
-            int partitions = graph.getPartitions() > 0 ? graph.getPartitions() : 1;
-            createPartitionCheckboxes(partitions);
+            if (graph.getPartitions() > 1) {
+                boolean isTrulyPrePartitioned = false;
+                if (graph.getNodes() != null && !graph.getNodes().isEmpty()) {
+                    for (Node node : graph.getNodes()) {
+                        if (node.getPartId() >= 0 && node.getPartId() < graph.getPartitions()) {
+                            isTrulyPrePartitioned = true;
+                            break;
+                        }
+                    }
+                }
 
-            JOptionPane.showMessageDialog(this,
-                    "Graph loaded successfully with " + graph.getVertices() + " vertices and " +
-                            graph.getEdges() + " edges.");
+                if (isTrulyPrePartitioned) {
+                    runButton.setEnabled(false);
+                    partitionsField.setText(String.valueOf(graph.getPartitions()));
+                    partitionsField.setEnabled(false);
+                    accuracyField.setEnabled(false);
+                    accuracyField.setText("");
+                    createPartitionCheckboxes(graph.getPartitions());
+                    System.out.println("Graph is pre-partitioned. Controls disabled.");
+                } else {
+                    runButton.setEnabled(true);
+                    partitionsField.setEnabled(true);
+                    partitionsField.setText("");
+                    accuracyField.setEnabled(true);
+                    accuracyField.setText("");
+                    createPartitionCheckboxes(0);
+                    System.out.println(
+                            "Graph loaded with single partition or no valid partition data. Controls enabled.");
+                }
+            } else {
+                runButton.setEnabled(true);
+                partitionsField.setEnabled(true);
+                partitionsField.setText("");
+                accuracyField.setEnabled(true);
+                accuracyField.setText("");
+                createPartitionCheckboxes(0);
+                System.out.println("Graph loaded as unpartitioned. Controls enabled.");
+            }
+            mainWindow.getGraphPanel().repaint();
+
         } catch (Exception e) {
-            JOptionPane.showMessageDialog(this,
-                    "Error loading graph: " + e.getMessage(),
-                    "Error", JOptionPane.ERROR_MESSAGE);
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(this, "Error loading graph: " + e.getMessage());
+            runButton.setEnabled(true);
+            partitionsField.setEnabled(true);
+            partitionsField.setText("");
+            accuracyField.setEnabled(true);
+            accuracyField.setText("");
+            createPartitionCheckboxes(0);
+        } finally {
+            if (isTempFileUsed && filePathToParse != null) {
+                File tempFile = new File(filePathToParse);
+                if (tempFile.exists() && tempFile.getName().startsWith("temp_graph_")) {
+                }
+            }
         }
     }
 
@@ -216,78 +280,90 @@ public class ControlPanel extends JPanel {
             return;
         }
 
-        try {
-            int partitions = Integer.parseInt(partitionsField.getText());
-            int accuracyPercent = Integer.parseInt(accuracyField.getText());
-
-            if (partitions <= 0) {
-                JOptionPane.showMessageDialog(this, "Number of partitions must be positive");
+        if (selectedOutputFile == null) {
+            chooseOutputFile();
+            if (selectedOutputFile == null) {
+                JOptionPane.showMessageDialog(this, "Save operation cancelled or no output file selected.");
                 return;
             }
-
-            if (partitions > graph.getVertices()) {
-                JOptionPane.showMessageDialog(this, "Number of partitions cannot exceed number of vertices");
-                return;
-            }
-
-            if (accuracyPercent < 0 || accuracyPercent > 100) {
-                JOptionPane.showMessageDialog(this, "Accuracy must be between 0 and 100%");
-                return;
-            }
-
-            float accuracy = (float) accuracyPercent / 100.0f;
-
-            graph.setPartitions(partitions);
-            graph.setMinCount(accuracy);
-            graph.setMaxCount(accuracy);
-
-            List<Partition> partitionList = new ArrayList<>();
-            for (int i = 0; i < partitions; i++) {
-                partitionList.add(new Partition(i, 0, new ArrayList<>()));
-            }
-            PartitionData partitionData = new PartitionData(partitions);
-            partitionData.setPartitions(partitionList);
-
-            boolean success = false;
-            for (int i = 0; i < 10; i++) {
-                success = RegionGrowing.regionGrowing(graph, partitions, partitionData, accuracy);
-                if (success) {
-                    break;
-                }
-            }
-
-            FmOptimization.cutEdgesOptimization(graph, partitionData, 100);
-
-            mainWindow.updateGraph(graph);
-
-            createPartitionCheckboxes(partitions);
-
-            JOptionPane.showMessageDialog(this,
-                    "Partitioning " + (success ? "completed successfully" : "completed with balance issues"));
-
-            io.FileWriter file = new io.FileWriter();
-            String outputFileName;
-            if (selectedOutputFile != null) {
-                outputFileName = selectedOutputFile.getPath();
-            } else {
-                outputFileName = "./data/anwser";
-            }
-
-            if (selectedOutputType == 0) { // Text
-                if (!outputFileName.endsWith(".csrrg")) {
-                    outputFileName += ".csrrg";
-                }
-                file.writeText(outputFileName, graph.getParsedData(), partitionData, graph, partitions);
-            } else { // Binary
-                if (!outputFileName.endsWith(".bin")) {
-                    outputFileName += ".bin";
-                }
-                file.writeBinary(outputFileName, graph.getParsedData(), partitionData, graph, partitions);
-            }
-        } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(this,
-                    "Please enter valid numbers for partitions and accuracy",
-                    "Error", JOptionPane.ERROR_MESSAGE);
         }
+
+        int parts;
+        double accFraction;
+        try {
+            parts = Integer.parseInt(partitionsField.getText());
+            accFraction = Double.parseDouble(accuracyField.getText()) / 100.0;
+        } catch (NumberFormatException e) {
+            JOptionPane.showMessageDialog(this, "Invalid number of partitions or accuracy percentage.");
+            return;
+        }
+
+        if (parts <= 0) {
+            JOptionPane.showMessageDialog(this, "Number of partitions must be positive.");
+            return;
+        }
+        if (parts > graph.getVertices() && graph.getVertices() > 0) {
+            JOptionPane.showMessageDialog(this,
+                    "Number of partitions cannot exceed number of vertices (" + graph.getVertices() + ").");
+            return;
+        }
+        if (accFraction < 0.0 || accFraction > 1.0) {
+            JOptionPane.showMessageDialog(this, "Accuracy must be between 0% and 100%.");
+            return;
+        }
+
+        graph.setPartitions(parts);
+        graph.setMinCount(accFraction);
+        graph.setMaxCount(accFraction);
+
+        PartitionData partitionData = new PartitionData(parts);
+        if (graph.getNodes() != null) {
+            for (Node node : graph.getNodes()) {
+                node.setPartId(-1);
+            }
+        }
+
+        System.out
+                .println("Starting Region Growing with " + parts + " parts and " + (accFraction * 100) + "% accuracy.");
+        boolean rgSuccess = RegionGrowing.regionGrowing(graph, parts, partitionData, (float) accFraction);
+        if (!rgSuccess) {
+            System.out.println("Region Growing completed, but balance criteria might not be fully met.");
+        } else {
+            System.out.println("Region Growing completed successfully.");
+        }
+
+        System.out.println("Starting FM Optimization.");
+        int fmMaxIterations = 100;
+        FmOptimization.cutEdgesOptimization(graph, partitionData, fmMaxIterations);
+        System.out.println("FM Optimization completed.");
+
+        mainWindow.updateGraph(graph);
+
+        try {
+            if (selectedOutputType == 0) {
+                FileWriter.writeText(selectedOutputFile.getAbsolutePath(), graph.getParsedData(), partitionData, graph,
+                        parts);
+            } else {
+                FileWriter.writeBinary(selectedOutputFile.getAbsolutePath(), graph.getParsedData(), partitionData,
+                        graph, parts);
+            }
+            JOptionPane.showMessageDialog(this,
+                    "Partitioning complete. Output saved to " + selectedOutputFile.getName());
+
+            createPartitionCheckboxes(parts);
+            mainWindow.getGraphPanel().repaint();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(this, "Error saving partitioned graph: " + e.getMessage());
+        }
+    }
+
+    public void setInputFileLabel(String text) {
+        inputFileLabel.setText(text);
+    }
+
+    public void setOutputFileLabel(String text) {
+        outputFileLabel.setText(text);
     }
 }

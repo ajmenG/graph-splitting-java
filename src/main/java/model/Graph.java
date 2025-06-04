@@ -3,11 +3,11 @@ package model;
 import java.util.ArrayList;
 
 public class Graph {
-    private int vertices; // number of vertices
-    private int edges; // number of edges
-    private int partitions; // number of partitions
-    private int minCount; // minimum count of nodes in a partition
-    private int maxCount; // maximum count of nodes in a partition
+    private int vertices;
+    private int edges;
+    private int partitions;
+    private int minCount;
+    private int maxCount;
     private ArrayList<Node> nodes;
     private int[] rowIndices;
 
@@ -28,7 +28,7 @@ public class Graph {
         for (int i = 0; i < vertices; i++) {
             edges += nodes.get(i).getNeighbours().size();
         }
-        this.edges = edges / 2; // each edge is counted twice
+        this.edges = edges / 2;
     }
 
     public void setEdges(int edges) {
@@ -54,11 +54,10 @@ public class Graph {
             throw new IllegalArgumentException(
                     "Accuracy must be between 0.0 and 1.0 and partitions must be greater than 0.");
         } else {
-            // Minimalny rozmiar partycji to średni rozmiar * (1.0 - accuracy)
             float avgSize = (float) this.vertices / this.partitions;
             this.minCount = (int) Math.ceil(avgSize * (1.0 - accuracy));
             if (this.minCount < 1) {
-                this.minCount = 1; // ensure minCount is at least 1
+                this.minCount = 1;
             }
             System.out.println(
                     "Min count set to: " + this.minCount + " (average: " + avgSize + ", accuracy: " + accuracy + ")");
@@ -70,11 +69,10 @@ public class Graph {
             throw new IllegalArgumentException(
                     "Accuracy must be between 0.0 and 1.0 and partitions must be greater than 0.");
         } else {
-            // Maksymalny rozmiar partycji to średni rozmiar * (1.0 + accuracy)
             float avgSize = (float) this.vertices / this.partitions;
             this.maxCount = (int) Math.floor(avgSize * (1.0 + accuracy));
             if (this.maxCount < 1) {
-                this.maxCount = 1; // ensure maxCount is at least 1
+                this.maxCount = 1;
             }
             System.out.println(
                     "Max count set to: " + this.maxCount + " (average: " + avgSize + ", accuracy: " + accuracy + ")");
@@ -138,7 +136,6 @@ public class Graph {
             throw new IllegalArgumentException("Node ID out of bounds: " + node.getId());
         }
         nodes.set(node.getId(), node);
-        // Dodajemy sąsiadów używając ID
         for (Node neighbour : node.getNeighbours()) {
             if (neighbour.getId() >= 0 && neighbour.getId() < vertices) {
                 nodes.get(neighbour.getId()).addNeighbour(node.getId());

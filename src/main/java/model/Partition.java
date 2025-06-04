@@ -4,8 +4,8 @@ import java.util.List;
 
 public class Partition {
     private int id;
-    private int partitionVertexCount; // number of vertices in the partition
-    private List<Integer> partitionNodes; // list of nodes in the partition
+    private int partitionVertexCount;
+    private List<Integer> partitionNodes;
 
     public Partition(int id, int partitionVertexCount, List<Integer> partitionNodes) {
         this.id = id;
