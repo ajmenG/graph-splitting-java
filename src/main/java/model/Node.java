@@ -7,24 +7,21 @@ public class Node {
     private int id;
     private List<Node> neighbours;
     private int partId;
-    private int neighbourCount;
 
     public Node(int id) {
         this.id = id;
         this.neighbours = new ArrayList<Node>();
-        this.partId = -1; // default -1 when not assigned
-        this.neighbourCount = 0;
+        this.partId = -1;
     }
 
-    public void addNeighbour(int neighbourId) {
-        // Tworzymy tymczasowy obiekt tylko do sprawdzenia, czy już istnieje w liście
+    public boolean addNeighbour(int neighbourId) {
         Node tempNode = new Node(neighbourId);
 
         if (this.neighbours.contains(tempNode)) {
-            return; // already exists
+            return false;
         }
         this.neighbours.add(tempNode);
-        setNeighbourCount();
+        return true;
     }
 
     public int getId() {
@@ -41,10 +38,6 @@ public class Node {
 
     public void setPartId(int partId) {
         this.partId = partId;
-    }
-
-    public void setNeighbourCount() {
-        this.neighbourCount = getNeighbourCount();
     }
 
     @Override

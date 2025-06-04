@@ -6,14 +6,14 @@ import model.ParsedData;
 
 import java.io.*;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class FileReader {
-    // stałe i zmienne globalne
-    private static final int MAX_BUFFER = Integer.MAX_VALUE; // maksymalny rozmiar bufora do czytania pliku
+    private static final int MAX_BUFFER = Integer.MAX_VALUE;
 
     public FileReader() {
-        // konstruktor bezparametrowy
     }
 
     // czyta liczbę zakodowaną w formacie vbyte z pliku binarnego
@@ -43,10 +43,6 @@ public class FileReader {
 
             int numVertices = decodeVbyte(file);
             System.out.println(numVertices + "\n");
-
-            // W oryginale jest błąd - readSeparator nie jest inicjalizowane przed
-            // porównaniem
-            // Zakładamy, że powinna być odczytana wartość z pliku
 
             int val;
             // Pierwsza sekcja
@@ -151,58 +147,225 @@ public class FileReader {
 
     // wczytuje graf z pliku tekstowego
     public Graph loadGraph(ParsedData data) {
-        // utwórz graf
-        Graph graph = new Graph(data.getLine2().size());
-        graph.setParsedData(data);
-        int edgeCount = 0;
-
-        // najpierw zainicjuj wszystkie węzły
-        for (int i = 0; i < data.getLine2().size(); i++) {
-            graph.addNode(new Node(i));
+        int numVertices = 0;
+        if (data.getLine1() > 0) {
+            numVertices = data.getLine1();
+        } else if (data.getLine2() != null && !data.getLine2().isEmpty()) {
+            numVertices = data.getLine2().size();
+            System.err.println("Info: numVertices from line1 was not positive. Using line2.size() = " + numVertices);
+        } else if (data.getNumberOfPartitions() <= 1 && data.getRowPointers() != null
+                && data.getRowPointers().size() > 0) {
+            if (data.getRowPointers().size() > 1) {
+                numVertices = data.getRowPointers().size() - 1;
+                System.err.println("Info: numVertices from line1/line2 was not positive. Using rowPointers.size()-1 = "
+                        + numVertices);
+            }
         }
 
-        // dodaj krawędzie do grafu
-        for (int i = 0; i < data.getRowPointers().size(); i++) {
-            // ustaw początek wiersza
-            int start = data.getRowPointers().get(i);
-
-            // koniec wiersza to początek następnego lub koniec listy krawędzi
-            int end = (i + 1 < data.getRowPointers().size()) ? data.getRowPointers().get(i + 1)
-                    : data.getEdges().size();
-
-            // dodaj krawędzie dla bieżącego wiersza
-            for (int j = start; j < end; j++) {
-                int currentVertex = i; // to jest poprawne - bieżący wierzchołek to i
-                int neighborVertex = data.getEdges().get(j);
-
-                // sprawdź poprawność indeksu sąsiada
-                if (neighborVertex < 0 || neighborVertex >= graph.getVertices()) {
-                    System.err.println("Indeks sąsiada poza zakresem: " + neighborVertex);
-                    continue;
+        int maxActualNodeId = -1;
+        if (data.getEdges() != null && !data.getEdges().isEmpty()) {
+            for (Integer nodeId : data.getEdges()) {
+                if (nodeId != null && nodeId > maxActualNodeId) {
+                    maxActualNodeId = nodeId;
                 }
-
-                // dodaj krawędź tylko raz (graf jest nieskierowany, ale każdą krawędź dodajemy
-                // tylko raz)
-                if (currentVertex < neighborVertex) { // dodaj krawędź tylko jeśli currentVertex < neighborVertex
-                    graph.getNode(currentVertex).addNeighbour(neighborVertex);
-                    graph.getNode(neighborVertex).addNeighbour(currentVertex);
-                    edgeCount++;
+            }
+        }
+        if (data.getRawPartitionDataLine() != null && !data.getRawPartitionDataLine().isEmpty()) {
+            String[] tokens = data.getRawPartitionDataLine().split(";");
+            for (String token : tokens) {
+                if (token != null && !token.trim().isEmpty()) {
+                    try {
+                        int val = Integer.parseInt(token.trim());
+                        if (val > maxActualNodeId) {
+                            maxActualNodeId = val;
+                        }
+                    } catch (NumberFormatException e) {
+                        System.err.println("Warning: Non-integer token '" + token
+                                + "' in rawPartitionDataLine. Ignoring for max ID calc.");
+                    }
                 }
             }
         }
 
-        // Aktualizacja liczby krawędzi w grafie
-        graph.setEdges(edgeCount);
+        if (maxActualNodeId != -1) {
+            int minRequiredVertices = maxActualNodeId + 1;
+            if (numVertices < minRequiredVertices) {
+                System.err.println("Warning: Current numVertices (" + numVertices +
+                        ") is less than implied by max actual node ID in data (" + maxActualNodeId +
+                        "). Adjusting numVertices to " + minRequiredVertices);
+                numVertices = minRequiredVertices;
+            } else if (numVertices > minRequiredVertices) {
+                System.err.println("Info: numVertices (" + numVertices +
+                        ") from header/metadata is greater than max actual node ID (" + maxActualNodeId +
+                        ") + 1. This might indicate isolated nodes. Using numVertices = " + numVertices + ".");
+            }
 
-        // Dodaj debug info
-        System.out.println("Loaded graph with " + graph.getVertices() + " vertices and " + graph.getEdges() + " edges");
-        System.out.println("Data contains " + data.getEdges().size() + " edge entries and "
-                + data.getRowPointers().size() + " row pointers");
+        } else { // maxActualNodeId == -1 (no edge data at all)
+            if (numVertices <= 0) {
+                
+                System.err.println(
+                        "Warning: Could not determine number of vertices from any source, or graph is truly empty. numVertices = "
+                                + numVertices);
+                if (data.getLine1() > 0 || (data.getLine2() != null && !data.getLine2().isEmpty())) {
+                } else if (numVertices == 0 && (data.getEdges() == null || data.getEdges().isEmpty())
+                        && (data.getRawPartitionDataLine() == null || data.getRawPartitionDataLine().isEmpty())) {
+                } else {
+                    throw new IllegalArgumentException(
+                            "Cannot determine number of vertices. Header lines are non-positive or absent, and no node data found.");
+                }
+            } else {
+                System.err.println("Info: numVertices = " + numVertices
+                        + " (from header/metadata). No edge data found to verify/adjust.");
+            }
+        }
 
+        if (numVertices <= 0 && maxActualNodeId == -1 && data.getLine1() <= 0
+                && (data.getLine2() == null || data.getLine2().isEmpty())) {
+            System.err.println("Info: Proceeding with numVertices = 0 (empty graph).");
+        } else if (numVertices <= 0) {
+            throw new IllegalArgumentException("Calculated numVertices is not positive: " + numVertices
+                    + ". MaxActualNodeId: " + maxActualNodeId + ". Line1: " + data.getLine1()
+                    + ". Check input file format and content.");
+        }
+
+        Graph graph = new Graph(numVertices);
+        graph.setParsedData(data);
+        graph.setPartitions(data.getNumberOfPartitions());
+
+        for (int i = 0; i < numVertices; i++) {
+            Node node = new Node(i);
+            graph.addNode(node);
+        }
+
+        int edgeCount = 0;
+
+        if (data.getNumberOfPartitions() > 1 && data.getRawPartitionDataLine() != null
+                && data.getRawOffsetLines() != null && !data.getRawOffsetLines().isEmpty()) {
+            List<Integer> allPartitionPairs;
+            try {
+                allPartitionPairs = Arrays.stream(data.getRawPartitionDataLine().split(";"))
+                        .map(s -> Integer.parseInt(s.trim()))
+                        .collect(Collectors.toList());
+            } catch (NumberFormatException e) {
+                System.err.println("Error parsing rawPartitionDataLine: " + e.getMessage());
+                graph.setEdges(0); 
+                return graph;
+            }
+
+            List<String> offsetLines = data.getRawOffsetLines();
+
+            for (int p = 0; p < data.getNumberOfPartitions(); p++) {
+                if (p >= offsetLines.size()) {
+                    System.err.println(
+                            "Warning: Mismatch between numberOfPartitions and available offset lines. Skipping partition "
+                                    + p);
+                    continue;
+                }
+                List<Integer> offsetsForP = readLine(offsetLines.get(p));
+
+                if (offsetsForP == null || offsetsForP.size() < 2) { // Need at least start and end offset for any data
+                    System.err.println("Warning: Invalid or empty offset line for partition " + p + ". Content: '"
+                            + offsetLines.get(p) + "'");
+                    continue;
+                }
+
+                int startPairIndex = offsetsForP.get(0);
+                int endPairIndex = offsetsForP.get(offsetsForP.size() - 1);
+
+                for (int currentIdxInPairs = startPairIndex; currentIdxInPairs < endPairIndex; currentIdxInPairs += 2) {
+                    if (currentIdxInPairs + 1 >= allPartitionPairs.size()) {
+                        System.err.println("Warning: Partition " + p
+                                + " offset data points beyond rawPartitionDataLine bounds. Start: " + startPairIndex
+                                + ", End: " + endPairIndex + ", Current: " + currentIdxInPairs + ", RawDataSize: "
+                                + allPartitionPairs.size());
+                        break;
+                    }
+                    int u = allPartitionPairs.get(currentIdxInPairs);
+                    int v = allPartitionPairs.get(currentIdxInPairs + 1);
+
+                    if (u >= numVertices || v >= numVertices || u < 0 || v < 0) {
+                        System.err.println("Error: Node ID (" + u + " or " + v + ") out of bounds for numVertices="
+                                + numVertices + ". Skipping edge.");
+                        continue;
+                    }
+
+                    Node nodeU = graph.getNode(u);
+                    Node nodeV = graph.getNode(v);
+
+                    nodeU.setPartId(p);
+                    nodeV.setPartId(p);
+
+                    if (nodeU.addNeighbour(v)) {
+                        nodeV.addNeighbour(u);
+                        edgeCount++;
+                    }
+                }
+            }
+            graph.setEdges(edgeCount);
+            System.out.println("Loaded pre-partitioned graph with " + numVertices + " vertices, " + edgeCount
+                    + " edges, and " + data.getNumberOfPartitions() + " partitions.");
+
+        } else if (data.getEdges() != null && data.getRowPointers() != null &&
+                !data.getEdges().isEmpty() && !data.getRowPointers().isEmpty()) {
+            List<Integer> edges = data.getEdges();
+            List<Integer> rowPointers = data.getRowPointers();
+
+            if (rowPointers.size() - 1 != numVertices && data.getNumberOfPartitions() <= 1) {
+                System.err.println("Warning: rowPointers length (" + rowPointers.size()
+                        + ") does not match numVertices (" + numVertices + "). Adjacency list might be inconsistent.");
+            }
+
+            for (int i = 0; i < numVertices; i++) {
+                Node currentNode = graph.getNode(i);
+                if (data.getNumberOfPartitions() == 1) {
+                    currentNode.setPartId(0);
+                } else if (data.getNumberOfPartitions() == 0 && graph.getPartitions() <= 1) { 
+                    currentNode.setPartId(0);
+                }
+                
+
+                if (i < rowPointers.size() - 1) {
+                    int startEdge = rowPointers.get(i);
+                    int endEdge = rowPointers.get(i + 1);
+                    for (int j = startEdge; j < endEdge; j++) {
+                        if (j < edges.size()) {
+                            int neighborId = edges.get(j);
+                            if (neighborId >= numVertices || neighborId < 0) {
+                                System.err.println("Error: Neighbor ID (" + neighborId + ") for node " + i
+                                        + " out of bounds for numVertices=" + numVertices + ". Skipping edge.");
+                                continue;
+                            }
+                            Node neighborNode = graph.getNode(neighborId);
+                            if (currentNode.addNeighbour(neighborId)) {
+                                neighborNode.addNeighbour(i);
+                                edgeCount++;
+                            }
+                        } else {
+                            System.err.println(
+                                    "Warning: Edge index " + j + " out of bounds for edges list size " + edges.size());
+                            break;
+                        }
+                    }
+                }
+            }
+            graph.setEdges(edgeCount);
+            System.out.println("Loaded graph with " + numVertices + " vertices and " + edgeCount + " edges.");
+        } else {
+            System.err.println(
+                    "Warning: Graph data (edges/rowPointers or partitioned data) is incomplete or missing. Graph might be empty or partially loaded.");
+            graph.setEdges(0);
+            for (int i = 0; i < numVertices; ++i) {
+                Node node = graph.getNode(i);
+                if (node.getPartId() == -1) {
+                    if (graph.getPartitions() <= 1) {
+                        node.setPartId(0);
+                    }
+                }
+            }
+        }
         return graph;
     }
 
-    // dodaje sąsiada do listy sąsiadów wierzchołka
     private static void addNeighbor(Node node, int neighbor) {
         if (node == null) {
             throw new IllegalArgumentException("Node cannot be null");
@@ -212,28 +375,51 @@ public class FileReader {
 
     public ParsedData parseFile(String filePath) throws IOException {
         ParsedData data = new ParsedData();
+        List<String> allLines = new ArrayList<>();
 
         try (BufferedReader reader = new BufferedReader(new java.io.FileReader(filePath))) {
-            // Read the first line (size of matrix)
-            String line = reader.readLine();
-            int matrixSize = Integer.parseInt(line);
-            data.setLine1(matrixSize);
+            String line;
+            while ((line = reader.readLine()) != null) {
+                allLines.add(line);
+            }
+        }
 
-            // Read the second line
-            line = reader.readLine();
-            data.setLine2(readLine(line));
+        if (allLines.isEmpty()) {
+            throw new IOException("File is empty: " + filePath);
+        }
 
-            // Read the third line
-            line = reader.readLine();
-            data.setLine3(readLine(line));
+        data.setLine1(Integer.parseInt(allLines.get(0)));
 
-            // Read the fourth line (edges)
-            line = reader.readLine();
-            data.setEdges(readLine(line));
+        if (allLines.size() > 1) {
+            data.setLine2(readLine(allLines.get(1)));
+        }
+        if (allLines.size() > 2) {
+            data.setLine3(readLine(allLines.get(2)));
+        }
 
-            // Read the fifth line (row pointers)
-            line = reader.readLine();
-            data.setRowPointers(readLine(line));
+        int numberOfPartitions = 0;
+        if (allLines.size() >= 4) {
+            numberOfPartitions = allLines.size() - 4;
+        }
+        if (numberOfPartitions < 0)
+            numberOfPartitions = 0; 
+
+        data.setNumberOfPartitions(numberOfPartitions == 0 ? 1 : numberOfPartitions);
+
+        if (allLines.size() >= 4) {
+            if (data.getNumberOfPartitions() > 1) {
+                data.setRawPartitionDataLine(allLines.get(3));
+                if (allLines.size() > 4) {
+                    data.setRawOffsetLines(new ArrayList<>(allLines.subList(4, allLines.size())));
+                }
+            } else {
+                data.setEdges(readLine(allLines.get(3)));
+                if (allLines.size() > 4) {
+                    data.setRowPointers(readLine(allLines.get(4)));
+                } else {
+                    data.setRowPointers(new ArrayList<>());
+                }
+            }
         }
 
         return data;
@@ -255,5 +441,185 @@ public class FileReader {
             }
         }
         return numbers;
+    }
+
+    private String convertListIntegerToSemicolonString(List<Integer> list) {
+        if (list == null || list.isEmpty())
+            return "";
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < list.size(); i++) {
+            sb.append(list.get(i));
+            if (i < list.size() - 1) {
+                sb.append(";");
+            }
+        }
+        return sb.toString();
+    }
+
+    public ParsedData parseBinaryDeltaEncodedFile(String filePath) throws IOException {
+        ParsedData data = new ParsedData();
+        List<List<Integer>> allLogicalLines = new ArrayList<>();
+
+        try (FileInputStream fis = new FileInputStream(filePath);
+                DataInputStream dis = new DataInputStream(fis)) {
+
+            while (dis.available() > 0) {
+                if (dis.available() < 4) {
+                    if (dis.available() > 0) {
+                        System.err.println("Warning: Trailing bytes in binary file (" + dis.available()
+                                + "), not enough for a full line prefix. Ignoring.");
+                    }
+                    break;
+                }
+                int numValuesInLine = dis.readInt();
+
+                if (numValuesInLine < 0) {
+                    throw new IOException(
+                            "Binary file corrupted: number of values in line cannot be negative: " + numValuesInLine);
+                }
+                if (numValuesInLine == 0) {
+                    allLogicalLines.add(new ArrayList<>());
+                    continue;
+                }
+                if (dis.available() < (long) numValuesInLine * 2) {
+                    throw new IOException("Binary file corrupted or length prefix incorrect. Expected " +
+                            numValuesInLine * 2 + " bytes for data, but only " + dis.available()
+                            + " available after reading length.");
+                }
+
+                List<Integer> currentLineValues = new ArrayList<>();
+                if (numValuesInLine > 0) {
+                    short encodedFirstValue = dis.readShort();
+                    int signBitFirst = (encodedFirstValue >> 15) & 0x1;
+                    int magnitudeFirst = encodedFirstValue & 0x7FFF;
+                    int currentReconstructedValue = (signBitFirst == 1) ? -magnitudeFirst : magnitudeFirst;
+                    currentLineValues.add(currentReconstructedValue);
+
+                    for (int i = 1; i < numValuesInLine; i++) {
+                        short encodedDelta = dis.readShort();
+                        int signBitDelta = (encodedDelta >> 15) & 0x1;
+                        int magnitudeDelta = encodedDelta & 0x7FFF;
+                        int delta = (signBitDelta == 1) ? -magnitudeDelta : magnitudeDelta;
+
+                        currentReconstructedValue += delta;
+                        currentLineValues.add(currentReconstructedValue);
+                    }
+                }
+                allLogicalLines.add(currentLineValues);
+            }
+        }
+
+        if (allLogicalLines.isEmpty()) {
+            throw new IOException("Binary file is empty or contains no valid data lines: " + filePath);
+        }
+
+        if (allLogicalLines.get(0).isEmpty()) {
+            throw new IOException("Binary file Line 1 (matrix size) is missing or empty.");
+        }
+        data.setLine1(allLogicalLines.get(0).get(0));
+
+        if (allLogicalLines.size() > 1) {
+            data.setLine2(allLogicalLines.get(1));
+        }
+        if (allLogicalLines.size() > 2) {
+            data.setLine3(allLogicalLines.get(2));
+        }
+
+        int numPotentialOffsetLines = 0;
+        if (allLogicalLines.size() >= 4) {
+            numPotentialOffsetLines = allLogicalLines.size() - 4;
+        }
+        data.setNumberOfPartitions(numPotentialOffsetLines == 0 ? 1 : numPotentialOffsetLines);
+
+        if (allLogicalLines.size() >= 4) {
+            if (data.getNumberOfPartitions() > 1) {
+                data.setRawPartitionDataLine(convertListIntegerToSemicolonString(allLogicalLines.get(3)));
+                if (allLogicalLines.size() > 4) {
+                    List<String> offsetStrings = new ArrayList<>();
+                    for (int i = 4; i < allLogicalLines.size(); i++) {
+                        offsetStrings.add(convertListIntegerToSemicolonString(allLogicalLines.get(i)));
+                    }
+                    data.setRawOffsetLines(offsetStrings);
+                } else {
+                    data.setRawOffsetLines(new ArrayList<>());
+                }
+            } else {
+                data.setEdges(allLogicalLines.get(3));
+                if (allLogicalLines.size() > 4) {
+                    data.setRowPointers(allLogicalLines.get(4));
+                } else {
+                    data.setRowPointers(new ArrayList<>());
+                }
+            }
+        } else {
+            if (data.getEdges() == null)
+                data.setEdges(new ArrayList<>());
+            if (data.getRowPointers() == null)
+                data.setRowPointers(new ArrayList<>());
+            if (data.getRawOffsetLines() == null)
+                data.setRawOffsetLines(new ArrayList<>());
+        }
+        return data;
+    }
+
+    public String convertBinaryToTemporaryTextFile(String binaryFilePath) throws IOException {
+        File tempFile = File.createTempFile("temp_graph_", ".csrrg");
+        tempFile.deleteOnExit();
+
+        try (FileInputStream fis = new FileInputStream(binaryFilePath);
+                DataInputStream dis = new DataInputStream(fis);
+                BufferedWriter writer = new BufferedWriter(new java.io.FileWriter(tempFile))) {
+
+            while (dis.available() > 0) {
+                if (dis.available() < 4) {
+                    if (dis.available() > 0) {
+                        System.err.println("Warning: Trailing bytes in binary file (" + dis.available()
+                                + "), not enough for a full line prefix. Ignoring.");
+                    }
+                    break;
+                }
+                int numValuesInLine = dis.readInt();
+
+                if (numValuesInLine < 0) {
+                    throw new IOException(
+                            "Binary file corrupted: number of values in line cannot be negative: " + numValuesInLine);
+                }
+                if (numValuesInLine == 0) {
+                    writer.newLine();
+                    continue;
+                }
+                if (dis.available() < (long) numValuesInLine * 2) {
+                    throw new IOException("Binary file corrupted or length prefix incorrect. Expected " +
+                            numValuesInLine * 2 + " bytes, but only " + dis.available() + " available.");
+                }
+
+                List<Integer> currentLineValues = new ArrayList<>();
+                if (numValuesInLine > 0) {
+                    short encodedFirstValue = dis.readShort();
+                    int signBitFirst = (encodedFirstValue >> 15) & 0x1;
+                    int magnitudeFirst = encodedFirstValue & 0x7FFF;
+                    int currentReconstructedValue = (signBitFirst == 1) ? -magnitudeFirst : magnitudeFirst;
+                    currentLineValues.add(currentReconstructedValue);
+
+                    for (int i = 1; i < numValuesInLine; i++) {
+                        short encodedDelta = dis.readShort();
+                        int signBitDelta = (encodedDelta >> 15) & 0x1;
+                        int magnitudeDelta = encodedDelta & 0x7FFF;
+                        int delta = (signBitDelta == 1) ? -magnitudeDelta : magnitudeDelta;
+
+                        currentReconstructedValue += delta;
+                        currentLineValues.add(currentReconstructedValue);
+                    }
+                }
+                writer.write(convertListIntegerToSemicolonString(currentLineValues));
+                writer.newLine();
+            }
+        } catch (IOException e) {
+            if (tempFile.exists()) {
+                tempFile.delete();
+            }
+            throw e;
+        }
+        return tempFile.getAbsolutePath();
     }
 }

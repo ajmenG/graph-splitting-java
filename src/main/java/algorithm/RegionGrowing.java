@@ -41,571 +41,300 @@ public class RegionGrowing {
         }
     }
 
-    /**
-     * Generates seed points for partitions, trying to keep them distant from each
-     * other
-     */
     private static int[] generateSeedPoints(Graph graph, int parts) {
         Random random = new Random();
         int[] seedPoints = new int[parts];
+        Arrays.fill(seedPoints, -1);
 
-        // Select first point randomly
-        seedPoints[0] = random.nextInt(graph.getVertices());
+        if (graph.getVertices() == 0 && parts > 0) {
+            return seedPoints;
+        }
+        if (parts == 0) {
+            return seedPoints;
+        }
+        if (graph.getVertices() < parts) {
+            parts = graph.getVertices();
+            seedPoints = new int[parts];
+            for (int i = 0; i < parts; ++i)
+                seedPoints[i] = i;
+            return seedPoints;
+        }
 
-        // For each subsequent point, find one that is minimally connected with previous
-        // points
-        for (int i = 1; i < parts; i++) {
+        Set<Integer> chosenSeeds = new HashSet<>();
+
+        for (int i = 0; i < parts; i++) {
+            if (chosenSeeds.size() >= graph.getVertices())
+                break;
+
             int bestVertex = -1;
-            int minConnections = graph.getVertices(); // maximum possible connections
+            if (i == 0) {
+                bestVertex = random.nextInt(graph.getVertices());
+                while (chosenSeeds.contains(bestVertex))
+                    bestVertex = random.nextInt(graph.getVertices());
+            } else {
+                int minConnections = Integer.MAX_VALUE;
+                final int maxAttempts = Math.max(100, graph.getVertices() * 2);
+                int attempts = 0;
 
-            // Check 100 random candidates
-            for (int j = 0; j < 100; j++) {
-                int candidate = random.nextInt(graph.getVertices());
+                for (int j = 0; j < maxAttempts; j++) {
+                    int candidate = random.nextInt(graph.getVertices());
+                    if (chosenSeeds.contains(candidate)) {
+                        if (attempts < maxAttempts * 2 && chosenSeeds.size() < graph.getVertices()) {
+                            j--;
+                            attempts++;
+                        }
+                        continue;
+                    }
+                    attempts = 0;
 
-                // Count connections with already chosen points
-                int connections = 0;
-                for (int k = 0; k < i; k++) {
-                    int seed = seedPoints[k];
+                    int connections = 0;
+                    Node candidateNode = graph.getNode(candidate);
+                    if (candidateNode == null)
+                        continue;
 
-                    // Check for direct connection
-                    for (Node neighbor : graph.getNode(candidate).getNeighbours()) {
-                        if (neighbor.getId() == seed) {
-                            connections++;
-                            break;
+                    for (int k = 0; k < i; k++) {
+                        if (seedPoints[k] == -1)
+                            continue;
+                        Node seedNode = graph.getNode(seedPoints[k]);
+                        if (seedNode == null)
+                            continue;
+                        for (Node neighbor : candidateNode.getNeighbours()) {
+                            if (neighbor.getId() == seedPoints[k]) {
+                                connections++;
+                                break;
+                            }
+                        }
+                        for (Node neighborOfSeed : seedNode.getNeighbours()) {
+                            if (neighborOfSeed.getId() == candidate) {
+                                connections++;
+                                break;
+                            }
                         }
                     }
+
+                    if (connections < minConnections) {
+                        minConnections = connections;
+                        bestVertex = candidate;
+                        if (minConnections == 0)
+                            break;
+                    } else if (connections == minConnections && random.nextBoolean()) {
+                        bestVertex = candidate;
+                    }
                 }
-
-                // Select vertex with fewest connections
-                if (connections < minConnections) {
-                    minConnections = connections;
-                    bestVertex = candidate;
-
-                    // If we found a completely unconnected point, that's ideal
-                    if (minConnections == 0)
-                        break;
+                if (bestVertex == -1 && chosenSeeds.size() < graph.getVertices()) {
+                    int fallbackCandidate = random.nextInt(graph.getVertices());
+                    while (chosenSeeds.contains(fallbackCandidate))
+                        fallbackCandidate = random.nextInt(graph.getVertices());
+                    bestVertex = fallbackCandidate;
                 }
             }
 
-            seedPoints[i] = bestVertex;
+            if (bestVertex != -1) {
+                seedPoints[i] = bestVertex;
+                chosenSeeds.add(bestVertex);
+            } else {
+            }
         }
-
-        // Mark seed points as belonging to their respective partitions
-        for (int i = 0; i < parts; i++) {
-            graph.getNode(seedPoints[i]).setPartId(i);
-        }
-
         return seedPoints;
     }
 
-    /**
-     * Main region growing algorithm
-     */
     public static boolean regionGrowing(Graph graph, int parts, PartitionData partitionData, float accuracy) {
-        // Check if number of partitions makes sense
-        if (parts > graph.getVertices()) {
-            throw new IllegalArgumentException("Number of parts cannot be greater than number of vertices");
+        if (graph == null || graph.getVertices() == 0) {
+            if (partitionData != null && parts > 0 && partitionData.getPartsCount() >= parts) {
+                for (int i = 0; i < parts; ++i) {
+                    if (i < partitionData.getPartitions().size())
+                        partitionData.getPartitions().get(i).getPartitionNodes().clear();
+                }
+            }
+            return true;
+        }
+        if (parts <= 0) {
+            return false;
         }
 
-        // Initialize variables
-        int[] seedPoints = generateSeedPoints(graph, parts);
-        boolean[] visited = new boolean[graph.getVertices()];
+        int numVertices = graph.getVertices();
+        if (parts > numVertices) {
+            parts = numVertices;
+        }
 
-        // Create frontiers for each partition
+        if (partitionData == null) {
+            partitionData = new PartitionData(parts);
+        } else if (partitionData.getPartsCount() != parts) {
+            partitionData.setPartsCount(parts);
+            partitionData.getPartitions().clear();
+            for (int i = 0; i < parts; ++i)
+                partitionData.getPartitions().add(new model.Partition(i, 0, new ArrayList<>()));
+        } else {
+            for (model.Partition p : partitionData.getPartitions()) {
+                p.getPartitionNodes().clear();
+                p.setPartitionVertexCount(0);
+            }
+        }
+
+        for (Node node : graph.getNodes()) {
+            node.setPartId(-1);
+        }
+
+        int[] seedPoints = generateSeedPoints(graph, parts);
+        boolean[] visited = new boolean[numVertices];
         List<List<Integer>> frontiers = new ArrayList<>(parts);
         for (int i = 0; i < parts; i++) {
             frontiers.add(new ArrayList<>());
         }
 
-        // Reset partition assignments
-        for (int i = 0; i < graph.getVertices(); i++) {
-            graph.getNode(i).setPartId(-1); // -1 means unassigned
-        }
-
-        // Initialize partition size counters
         int[] partCounts = new int[parts];
 
-        // Add seed points to frontiers
         for (int i = 0; i < parts; i++) {
-            visited[seedPoints[i]] = true;
-            graph.getNode(seedPoints[i]).setPartId(i);
-            if (partitionData != null) {
+            if (seedPoints[i] != -1 && seedPoints[i] < numVertices) {
+                visited[seedPoints[i]] = true;
+                graph.getNode(seedPoints[i]).setPartId(i);
                 partitionData.addVertexToPartition(i, seedPoints[i]);
-            }
-            partCounts[i]++;
+                partCounts[i] = partitionData.getPartitions().get(i).getPartitionVertexCount();
 
-            // Add neighbors of seed point to frontier
-            Node node = graph.getNode(seedPoints[i]);
-            for (Node neighbor : node.getNeighbours()) {
-                if (!visited[neighbor.getId()]) {
-                    frontiers.get(i).add(neighbor.getId());
+                Node seedNode = graph.getNode(seedPoints[i]);
+                for (Node neighbor : seedNode.getNeighbours()) {
+                    if (neighbor.getId() < numVertices && !visited[neighbor.getId()]) {
+                        frontiers.get(i).add(neighbor.getId());
+                    }
                 }
             }
         }
 
-        // Calculate average vertices per part
-        float avgVerticesPerPart = (float) graph.getVertices() / parts;
+        float avgVerticesPerPart = (float) numVertices / Math.max(1, parts);
+        int minVerticesPerPart = Math.max(1, (int) Math.floor(avgVerticesPerPart * (1.0f - accuracy)));
 
-        // Calculate min and max based on accuracy
-        int minVerticesPerPart = (int) (avgVerticesPerPart * (1.0 - accuracy));
-        if ((float) minVerticesPerPart < (avgVerticesPerPart * (1.0 - accuracy))) {
-            minVerticesPerPart++;
-        }
-        int maxVerticesPerPart = (int) (avgVerticesPerPart * (1.0 + accuracy));
+        int calculatedMaxVerticesPerPart = (int) Math.ceil(avgVerticesPerPart * (1.0f + accuracy));
+        if (calculatedMaxVerticesPerPart < minVerticesPerPart)
+            calculatedMaxVerticesPerPart = minVerticesPerPart;
+        if (calculatedMaxVerticesPerPart == 0 && numVertices > 0)
+            calculatedMaxVerticesPerPart = numVertices;
+        final int finalMaxVerticesPerPart = calculatedMaxVerticesPerPart;
 
-        // Main algorithm loop
         int iterations = 0;
-        int unassigned = graph.getVertices() - parts; // all vertices minus seed points
+        int unassigned = numVertices - Arrays.stream(partCounts).sum();
 
-        // Optimization - keep a list of active partitions
-        List<Integer> activePartitions = new ArrayList<>(parts);
-        for (int i = 0; i < parts; i++) {
-            activePartitions.add(i);
-        }
+        List<Integer> activePartitionIndices = new ArrayList<>();
+        for (int i = 0; i < parts; ++i)
+            if (seedPoints[i] != -1)
+                activePartitionIndices.add(i);
 
-        while (unassigned > 0 && iterations < graph.getVertices() * 2) {
-            int minPart = -1;
-            int minSize = graph.getVertices();
+        while (unassigned > 0 && !activePartitionIndices.isEmpty() && iterations < numVertices * parts * 2) {
+            int bestPartIdxToGrow = -1;
+            int currentMinPartSize = Integer.MAX_VALUE;
 
-            // Check only active partitions
-            Iterator<Integer> iterator = activePartitions.iterator();
-            while (iterator.hasNext()) {
-                int i = iterator.next();
-                if (!frontiers.get(i).isEmpty() && partCounts[i] < maxVerticesPerPart) {
-                    if (minPart == -1 || partCounts[i] < minSize) {
-                        minPart = i;
-                        minSize = partCounts[i];
-                    }
-                }
-
-                // If partition becomes inactive, remove it from the list
-                if (frontiers.get(i).isEmpty()) {
-                    iterator.remove();
-                }
-            }
-
-            // Select only a vertex that has a neighbor in the partition
-            boolean validVertexFound = false;
-            int current = -1;
-
-            // Check vertices in the frontier one by one
-            if (minPart != -1) {
-                for (int i = 0; i < frontiers.get(minPart).size(); i++) {
-                    int candidate = frontiers.get(minPart).get(i);
-
-                    // Check if candidate has a neighbor in the partition
-                    if (!visited[candidate]) {
-                        boolean hasNeighborInPartition = false;
-                        Node node = graph.getNode(candidate);
-
-                        for (Node neighbor : node.getNeighbours()) {
-                            if (graph.getNode(neighbor.getId()).getPartId() == minPart) {
-                                hasNeighborInPartition = true;
-                                break;
-                            }
-                        }
-
-                        if (hasNeighborInPartition) {
-                            current = candidate;
-                            validVertexFound = true;
-
-                            // Remove it from frontier by swapping with last - faster than shifting
-                            int lastIndex = frontiers.get(minPart).size() - 1;
-                            if (i != lastIndex) {
-                                frontiers.get(minPart).set(i, frontiers.get(minPart).get(lastIndex));
-                            }
-                            frontiers.get(minPart).remove(lastIndex);
-                            break;
-                        }
-                    }
-                }
-
-                // If we didn't find a valid vertex, skip this partition
-                if (!validVertexFound) {
-                    // Reset frontier
-                    frontiers.get(minPart).clear();
-                    continue;
-                }
-
-                if (!visited[current]) {
-                    visited[current] = true;
-                    graph.getNode(current).setPartId(minPart);
-                    if (partitionData != null) {
-                        partitionData.addVertexToPartition(minPart, current);
-                    }
-                    partCounts[minPart]++;
-                    unassigned--;
-
-                    // Add neighbors to frontier
-                    Node node = graph.getNode(current);
-                    for (Node neighbor : node.getNeighbours()) {
-                        int neighborId = neighbor.getId();
-
-                        // Check neighbor index
-                        if (neighborId < 0 || neighborId >= graph.getVertices()) {
-                            continue;
-                        }
-
-                        if (!visited[neighborId]) {
-                            frontiers.get(minPart).add(neighborId);
-                        }
-                    }
-                }
-            }
-
-            iterations++;
-
-            // Check progress periodically
-            if (iterations % 100 == 0) {
-                // Find min and max vertex counts
-                int minCount = graph.getVertices();
-                int maxCount = 0;
-
-                for (int i = 0; i < parts; i++) {
-                    if (partCounts[i] < minCount)
-                        minCount = partCounts[i];
-                    if (partCounts[i] > maxCount)
-                        maxCount = partCounts[i];
-                }
-
-                // Check if we're already balanced
-                if (minCount >= minVerticesPerPart && unassigned == 0) {
-                    break;
-                }
-            }
-        }
-
-        // Check if there are any unassigned vertices
-        int unassignedCount = 0;
-        for (int i = 0; i < graph.getVertices(); i++) {
-            if (graph.getNode(i).getPartId() == -1) {
-                unassignedCount++;
-            }
-        }
-
-        if (unassignedCount > 0) {
-            // Create a list of unassigned vertices
-            List<Integer> unassignedVertices = new ArrayList<>(unassignedCount);
-
-            for (int i = 0; i < graph.getVertices(); i++) {
-                if (graph.getNode(i).getPartId() == -1) {
-                    unassignedVertices.add(i);
-                }
-            }
-
-            // Try to assign while maintaining connectivity
-            boolean assigned = true; // flag whether we assigned anything in this iteration
-
-            while (assigned && !unassignedVertices.isEmpty()) {
-                assigned = false;
-
-                // Check each unassigned vertex
-                Iterator<Integer> unassignedIter = unassignedVertices.iterator();
-                while (unassignedIter.hasNext()) {
-                    int v = unassignedIter.next();
-
-                    if (graph.getNode(v).getPartId() != -1) {
-                        // Already assigned in this iteration
-                        unassignedIter.remove();
-                        continue;
-                    }
-
-                    Node node = graph.getNode(v);
-                    int smallestNeighborPart = -1;
-                    int smallestNeighborCount = graph.getVertices();
-
-                    // Find neighboring partition with smallest number of vertices
-                    for (Node neighbor : node.getNeighbours()) {
-                        int neighborId = neighbor.getId();
-
-                        if (neighborId >= 0 && neighborId < graph.getVertices() &&
-                                graph.getNode(neighborId).getPartId() != -1) {
-                            int neighborPart = graph.getNode(neighborId).getPartId();
-
-                            if (partCounts[neighborPart] < smallestNeighborCount) {
-                                smallestNeighborCount = partCounts[neighborPart];
-                                smallestNeighborPart = neighborPart;
-                            }
-                        }
-                    }
-
-                    // If we found a neighboring partition, assign
-                    if (smallestNeighborPart != -1) {
-                        graph.getNode(v).setPartId(smallestNeighborPart);
-                        if (partitionData != null) {
-                            partitionData.addVertexToPartition(smallestNeighborPart, v);
-                        }
-                        partCounts[smallestNeighborPart]++;
-                        assigned = true;
-
-                        unassignedIter.remove();
-                    }
-                }
-            }
-
-            // If there are still unassigned vertices, assign by force
-            if (!unassignedVertices.isEmpty()) {
-                for (int v : unassignedVertices) {
-                    // Give to smallest partition
-                    int minPart = 0;
-                    for (int j = 1; j < parts; j++) {
-                        if (partCounts[j] < partCounts[minPart]) {
-                            minPart = j;
-                        }
-                    }
-
-                    graph.getNode(v).setPartId(minPart);
-                    if (partitionData != null) {
-                        partitionData.addVertexToPartition(minPart, v);
-                    }
-                    partCounts[minPart]++;
-                }
-            }
-        }
-
-        // Warn if iteration limit was exceeded
-        if (iterations >= graph.getVertices() * 3) {
-            System.out.println("WARNING: Loop terminated due to iteration limit");
-        }
-
-        // Check if we met accuracy requirements
-        boolean success = true;
-        float minRatio = graph.getVertices();
-        float maxRatio = 0;
-
-        for (int i = 0; i < parts; i++) {
-            float ratio = (float) partCounts[i] / avgVerticesPerPart;
-            if (ratio < minRatio)
-                minRatio = ratio;
-            if (ratio > maxRatio)
-                maxRatio = ratio;
-        }
-
-        // Warning if we didn't meet requirements
-        if (minRatio < (1.0 - accuracy) || maxRatio > (1.0 + accuracy)) {
-            success = false;
-        }
-
-        // Verify connectivity and fix if needed
-        boolean allConnected = true;
-
-        // Check connectivity for each partition
-        for (int p = 0; p < parts; p++) {
-            boolean isConnected = verifyPartitionConnectivity(graph, p);
-            if (!isConnected) {
-                allConnected = false;
-                fixDisconnectedPartition(graph, p, partCounts);
-            }
-        }
-
-        if (!allConnected) {
-            System.out.println("Fixed disconnected partitions. Re-verifying connectivity...");
-            checkPartitionConnectivity(graph, parts);
-        }
-
-        return success;
-    }
-
-    /**
-     * Checks the connectivity of a single partition
-     */
-    private static boolean verifyPartitionConnectivity(Graph graph, int partId) {
-        // Count vertices in partition (just once)
-        int[] partitionNodeCounts = new int[graph.getPartitions()];
-        for (int i = 0; i < graph.getVertices(); i++) {
-            int nodePartId = graph.getNode(i).getPartId();
-            if (nodePartId >= 0 && nodePartId < graph.getPartitions()) {
-                partitionNodeCounts[nodePartId]++;
-            }
-        }
-
-        // Number of vertices in the checked partition
-        int count = partitionNodeCounts[partId];
-
-        // Empty or with one vertex is connected
-        if (count <= 1) {
-            return true;
-        }
-
-        // Prepare structures for BFS
-        boolean[] visited = new boolean[graph.getVertices()];
-        int[] queue = new int[graph.getVertices()];
-
-        // Find first vertex in partition
-        int start = -1;
-        for (int i = 0; i < graph.getVertices(); i++) {
-            if (graph.getNode(i).getPartId() == partId) {
-                start = i;
+            activePartitionIndices
+                    .removeIf(pIdx -> frontiers.get(pIdx).isEmpty() || partCounts[pIdx] >= finalMaxVerticesPerPart);
+            if (activePartitionIndices.isEmpty())
                 break;
-            }
-        }
 
-        // BFS from this vertex
-        int front = 0, rear = 0;
-        queue[rear++] = start;
-        visited[start] = true;
-        int visitedCount = 1;
-
-        while (front < rear) {
-            int current = queue[front++];
-
-            // Check neighbors
-            for (Node neighbor : graph.getNode(current).getNeighbours()) {
-                int neighborId = neighbor.getId();
-                // Add to queue only neighbors from the same partition
-                if (graph.getNode(neighborId).getPartId() == partId && !visited[neighborId]) {
-                    visited[neighborId] = true;
-                    queue[rear++] = neighborId;
-                    visitedCount++;
+            for (int pIdx : activePartitionIndices) {
+                if (partCounts[pIdx] < currentMinPartSize) {
+                    currentMinPartSize = partCounts[pIdx];
+                    bestPartIdxToGrow = pIdx;
                 }
             }
-        }
 
-        // Partition is connected if we visited all vertices
-        return (visitedCount == count);
-    }
+            if (bestPartIdxToGrow == -1)
+                break;
 
-    /**
-     * Fixes disconnected partitions
-     */
-    private static void fixDisconnectedPartition(Graph graph, int partId, int[] partCounts) {
-        // Find all components in the partition
-        boolean[] visited = new boolean[graph.getVertices()];
-        int[] componentId = new int[graph.getVertices()];
-        int[] componentSize = new int[graph.getVertices()];
-        int componentCount = 0;
+            List<Integer> currentFrontier = frontiers.get(bestPartIdxToGrow);
+            Integer vertexToAssignId = null;
 
-        // Go through partition vertices
-        for (int i = 0; i < graph.getVertices(); i++) {
-            if (graph.getNode(i).getPartId() == partId && !visited[i]) {
-                // Found a new component
-                int[] queue = new int[graph.getVertices()];
-
-                // BFS for this component
-                int front = 0, rear = 0;
-                queue[rear++] = i;
-                visited[i] = true;
-                componentId[i] = componentCount;
-                componentSize[componentCount]++;
-
-                while (front < rear) {
-                    int current = queue[front++];
-
-                    for (Node neighbor : graph.getNode(current).getNeighbours()) {
-                        int neighborId = neighbor.getId();
-                        if (graph.getNode(neighborId).getPartId() == partId && !visited[neighborId]) {
-                            visited[neighborId] = true;
-                            queue[rear++] = neighborId;
-                            componentId[neighborId] = componentCount;
-                            componentSize[componentCount]++;
-                        }
-                    }
-                }
-
-                componentCount++;
-            }
-        }
-
-        // Keep the largest component, reassign the rest to other partitions
-        int largestComponent = 0;
-        for (int i = 1; i < componentCount; i++) {
-            if (componentSize[i] > componentSize[largestComponent]) {
-                largestComponent = i;
-            }
-        }
-
-        // Reassign other components to nearest partitions
-        for (int i = 0; i < graph.getVertices(); i++) {
-            if (graph.getNode(i).getPartId() == partId && componentId[i] != largestComponent) {
-                // Find a neighboring partition
-                int bestPart = -1;
-                Node node = graph.getNode(i);
-
-                for (Node neighbor : node.getNeighbours()) {
-                    int neighborId = neighbor.getId();
-                    int neighborPart = graph.getNode(neighborId).getPartId();
-
-                    if (neighborPart != partId && neighborPart != -1) {
-                        if (bestPart == -1 || partCounts[neighborPart] < partCounts[bestPart]) {
-                            bestPart = neighborPart;
-                        }
-                    }
-                }
-
-                // If we found a neighboring partition, assign
-                if (bestPart != -1) {
-                    partCounts[partId]--;
-                    partCounts[bestPart]++;
-                    graph.getNode(i).setPartId(bestPart);
-                }
-            }
-        }
-    }
-
-    /**
-     * Checks connectivity of all partitions in the graph
-     */
-    private static void checkPartitionConnectivity(Graph graph, int parts) {
-        boolean allConnected = true;
-
-        // Allocate structures only once for all partitions
-        boolean[] visited = new boolean[graph.getVertices()];
-        int[] queue = new int[graph.getVertices()];
-
-        // Check each partition in turn
-        for (int p = 0; p < parts; p++) {
-            // Reset visited array for new partition
-            Arrays.fill(visited, false);
-
-            // Count how many vertices are in this partition
-            int verticesInPart = 0;
-            int verticesVisited = 0;
-
-            for (int i = 0; i < graph.getVertices(); i++) {
-                if (graph.getNode(i).getPartId() == p)
-                    verticesInPart++;
-            }
-
-            // If partition has 0 or 1 vertex, it's connected
-            if (verticesInPart <= 1) {
-                continue;
-            }
-
-            // Find first vertex in partition
-            int startVertex = -1;
-            for (int i = 0; i < graph.getVertices(); i++) {
-                if (graph.getNode(i).getPartId() == p) {
-                    startVertex = i;
+            int originalFrontierSize = currentFrontier.size();
+            for (int k = 0; k < originalFrontierSize; ++k) {
+                Integer currentId = currentFrontier.get(0);
+                if (visited[currentId]) {
+                    currentFrontier.remove(0);
+                } else {
+                    vertexToAssignId = currentFrontier.remove(0);
                     break;
                 }
             }
 
-            // BFS starting from found vertex
-            int front = 0, rear = 0;
-            queue[rear++] = startVertex;
-            visited[startVertex] = true;
-            verticesVisited = 1;
+            if (vertexToAssignId != null) {
+                visited[vertexToAssignId] = true;
+                graph.getNode(vertexToAssignId).setPartId(bestPartIdxToGrow);
+                partitionData.addVertexToPartition(bestPartIdxToGrow, vertexToAssignId);
+                partCounts[bestPartIdxToGrow]++;
+                unassigned--;
 
-            while (front < rear) {
-                int current = queue[front++];
-
-                for (Node neighbor : graph.getNode(current).getNeighbours()) {
-                    int neighborId = neighbor.getId();
-
-                    // Add to queue only neighbors from the same partition
-                    if (graph.getNode(neighborId).getPartId() == p && !visited[neighborId]) {
-                        visited[neighborId] = true;
-                        queue[rear++] = neighborId;
-                        verticesVisited++;
+                Node assignedNode = graph.getNode(vertexToAssignId);
+                for (Node neighbor : assignedNode.getNeighbours()) {
+                    if (neighbor.getId() < numVertices && !visited[neighbor.getId()]) {
+                        frontiers.get(bestPartIdxToGrow).add(neighbor.getId());
                     }
                 }
             }
-
-            // Check if all partition vertices were visited
-            boolean isConnected = (verticesVisited == verticesInPart);
-
-            if (!isConnected)
-                allConnected = false;
+            iterations++;
         }
+
+        boolean allPartitionsMeetMinSize = true;
+        for (int i = 0; i < parts; i++) {
+            if (partCounts[i] < minVerticesPerPart && numVertices > 0 && seedPoints[i] != -1) {
+                allPartitionsMeetMinSize = false;
+            }
+        }
+        if (unassigned > 0 && numVertices > 0) {
+            for (int i = 0; i < numVertices; ++i) {
+                if (graph.getNode(i).getPartId() == -1) {
+                    int smallestPart = -1;
+                    int smallestSize = Integer.MAX_VALUE;
+                    for (int p = 0; p < parts; ++p) {
+                        if (seedPoints[p] != -1 && partCounts[p] < finalMaxVerticesPerPart
+                                && partCounts[p] < smallestSize) {
+                            smallestSize = partCounts[p];
+                            smallestPart = p;
+                        }
+                    }
+                    if (smallestPart != -1) {
+                        graph.getNode(i).setPartId(smallestPart);
+                        partitionData.addVertexToPartition(smallestPart, i);
+                        partCounts[smallestPart]++;
+                        unassigned--;
+                    }
+                }
+            }
+        }
+
+        for (int i = 0; i < parts; ++i) {
+            if (seedPoints[i] != -1 && !isPartitionConnected(graph, i, partitionData)) {
+            }
+        }
+        return allPartitionsMeetMinSize && unassigned == 0;
+    }
+
+    private static boolean isPartitionConnected(Graph graph, int partId, PartitionData pd) {
+        if (graph == null || pd == null || partId < 0 || partId >= pd.getPartsCount())
+            return true;
+
+        List<Integer> nodeIdsInPartition = pd.getPartitions().get(partId).getPartitionNodes();
+        if (nodeIdsInPartition.isEmpty() || nodeIdsInPartition.size() == 1)
+            return true;
+
+        Set<Integer> visitedNodes = new HashSet<>();
+        java.util.Queue<Integer> q = new java.util.ArrayDeque<>();
+
+        q.offer(nodeIdsInPartition.get(0));
+        visitedNodes.add(nodeIdsInPartition.get(0));
+
+        while (!q.isEmpty()) {
+            int currentId = q.poll();
+            Node currentNode = graph.getNode(currentId);
+            if (currentNode == null)
+                continue;
+
+            for (Node neighborStub : currentNode.getNeighbours()) {
+                Node actualNeighbor = graph.getNode(neighborStub.getId());
+                if (actualNeighbor == null)
+                    continue;
+
+                if (actualNeighbor.getPartId() == partId && nodeIdsInPartition.contains(actualNeighbor.getId())
+                        && !visitedNodes.contains(actualNeighbor.getId())) {
+                    visitedNodes.add(actualNeighbor.getId());
+                    q.offer(actualNeighbor.getId());
+                }
+            }
+        }
+        return visitedNodes.size() == nodeIdsInPartition.size();
     }
 }

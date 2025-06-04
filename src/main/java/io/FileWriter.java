@@ -12,7 +12,8 @@ public class FileWriter {
         return partition.getPartitionNodes().contains(vertex);
     }
 
-    public static List<Integer> getPartitionNeighbors(Graph graph, PartitionData partitionData, int partId, int vertex) {
+    public static List<Integer> getPartitionNeighbors(Graph graph, PartitionData partitionData, int partId,
+            int vertex) {
         List<Integer> neighbors = new ArrayList<>();
         Node node = graph.getNode(vertex);
         for (Node neighbor : node.getNeighbours()) {
@@ -23,25 +24,28 @@ public class FileWriter {
         return neighbors;
     }
 
-    public static void writeText(String filename, ParsedData data, PartitionData partitionData, Graph graph, int parts) {
-        try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(filename), "UTF-8"))) {
+    public static void writeText(String filename, ParsedData data, PartitionData partitionData, Graph graph,
+            int parts) {
+        try (BufferedWriter writer = new BufferedWriter(
+                new OutputStreamWriter(new FileOutputStream(filename), "UTF-8"))) {
             writer.write(data.getLine1() + "\n");
 
             List<Integer> line2 = data.getLine2();
             for (int i = 0; i < line2.size(); i++) {
                 writer.write(line2.get(i).toString());
-                if (i < line2.size() - 1) writer.write(";");
+                if (i < line2.size() - 1)
+                    writer.write(";");
             }
             writer.write("\n");
 
             List<Integer> line3 = data.getLine3();
             for (int i = 0; i < line3.size(); i++) {
                 writer.write(line3.get(i).toString());
-                if (i < line3.size() - 1) writer.write(";");
+                if (i < line3.size() - 1)
+                    writer.write(";");
             }
             writer.write("\n");
 
-            // Budujemy posortowaną listę wierzchołków dla każdej części
             List<List<Integer>> sortedVerticesPerPart = new ArrayList<>();
             for (int part = 0; part < parts; part++) {
                 Partition partition = partitionData.getPartitions().get(part);
@@ -50,7 +54,6 @@ public class FileWriter {
                 sortedVerticesPerPart.add(sortedVertices);
             }
 
-            // 4 linia: wypisujemy posortowane wierzchołki i ich sąsiadów
             for (int part = 0; part < parts; part++) {
                 List<Integer> sortedVertices = sortedVerticesPerPart.get(part);
                 for (int vertex : sortedVertices) {
@@ -62,12 +65,12 @@ public class FileWriter {
                         writer.write(String.valueOf(neighbors.get(j)));
                     }
                     boolean isLast = (part == parts - 1) && (vertex == sortedVertices.get(sortedVertices.size() - 1));
-                    if (!isLast) writer.write(";");
+                    if (!isLast)
+                        writer.write(";");
                 }
             }
             writer.write("\n");
 
-            // Offsety - linie zależne od liczby parts
             int lastPos = 0;
             for (int part = 0; part < parts; part++) {
                 List<Integer> sortedVertices = sortedVerticesPerPart.get(part);
@@ -100,20 +103,22 @@ public class FileWriter {
         out.write(value & 0x7F);
     }
 
-    public static void writeBinary(String filename, ParsedData data, PartitionData partitionData, Graph graph, int parts) {
+    public static void writeBinary(String filename, ParsedData data, PartitionData partitionData, Graph graph,
+            int parts) {
         try (FileOutputStream out = new FileOutputStream(filename)) {
             long separator = 0xDEADBEEFCAFEBABEL;
 
             encodeVByte(out, data.getLine1());
             out.write(ByteBuffer.allocate(8).putLong(separator).array());
 
-            for (int val : data.getLine2()) encodeVByte(out, val);
+            for (int val : data.getLine2())
+                encodeVByte(out, val);
             out.write(ByteBuffer.allocate(8).putLong(separator).array());
 
-            for (int val : data.getLine3()) encodeVByte(out, val);
+            for (int val : data.getLine3())
+                encodeVByte(out, val);
             out.write(ByteBuffer.allocate(8).putLong(separator).array());
 
-            // Budujemy posortowaną listę wierzchołków dla każdej części
             List<List<Integer>> sortedVerticesPerPart = new ArrayList<>();
             for (int part = 0; part < parts; part++) {
                 Partition partition = partitionData.getPartitions().get(part);
@@ -122,7 +127,6 @@ public class FileWriter {
                 sortedVerticesPerPart.add(sortedVertices);
             }
 
-            // Wypisujemy posortowane wierzchołki i ich sąsiadów w formacie binarnym
             for (int part = 0; part < parts; part++) {
                 List<Integer> sortedVertices = sortedVerticesPerPart.get(part);
                 for (int vertex : sortedVertices) {
@@ -136,7 +140,6 @@ public class FileWriter {
             }
             out.write(ByteBuffer.allocate(8).putLong(separator).array());
 
-            // Offsety binarne
             encodeVByte(out, 0);
             int lastPos = 0;
             for (int vertex : sortedVerticesPerPart.get(0)) {
@@ -157,7 +160,8 @@ public class FileWriter {
                     encodeVByte(out, pos);
                 }
                 lastPos = pos;
-                if (part < parts - 1) out.write(ByteBuffer.allocate(8).putLong(separator).array());
+                if (part < parts - 1)
+                    out.write(ByteBuffer.allocate(8).putLong(separator).array());
             }
 
         } catch (IOException e) {
